@@ -26,14 +26,16 @@ export default function register(api: any) {
   api.registerTool({
     name: "openclaw_unix_harness_run",
     description:
-      "Run unix-style command chains via local harness (supports |, &&, ||, ;). Requires explicit confirmations for destructive/external actions.",
+      "Run unix-style command chains via local harness (supports |, &&, ||, ;). Class B/C commands require explicit flags and confirmSure=true (are-you-sure double-check).",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         command: { type: "string", minLength: 1 },
+        confirmWrite: { type: "boolean", default: false },
         confirmDelete: { type: "boolean", default: false },
-        confirmExternalSend: { type: "boolean", default: false }
+        confirmExternalSend: { type: "boolean", default: false },
+        confirmSure: { type: "boolean", default: false }
       },
       required: ["command"]
     },
@@ -42,8 +44,10 @@ export default function register(api: any) {
         const mod = await import("file:///home/bot/openclaw-unix-harness-tool/src/run.js");
         const cfg = buildCfg(root, pluginCfg);
         const result = await mod.run(params.command, cfg, {
+          confirmWrite: Boolean(params.confirmWrite),
           confirmDelete: Boolean(params.confirmDelete),
-          confirmExternalSend: Boolean(params.confirmExternalSend)
+          confirmExternalSend: Boolean(params.confirmExternalSend),
+          confirmSure: Boolean(params.confirmSure)
         });
         const payload = JSON.stringify(result, null, 2);
         return { content: [{ type: "text", text: payload }] };
