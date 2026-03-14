@@ -21,7 +21,8 @@
       "llmEndpoints": {
         "type": "array",
         "items": { "type": "string" }
-      }
+      },
+      "domEnabled": { "type": "boolean" }
     }
   }
 }

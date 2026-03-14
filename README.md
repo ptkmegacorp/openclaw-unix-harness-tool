@@ -110,6 +110,7 @@ Covers v1 matrix areas:
 - Trace logging
 - Recovery UX checks
 - mgrep semantic search (file / recursive / stdin / flags)
+- dom harness extraction commands + toggle behavior
 
 ## mgrep semantic grep (+ persistent index)
 
@@ -177,3 +178,23 @@ Troubleshooting:
 - Defaults to local llama.cpp OpenAI-compatible endpoints (`127.0.0.1:8080,8081`).
 - `HARNESS_USE_LLM_PRESENTER=1` by default in plugin wiring.
 - Keep commands short, deterministic, and pipe-friendly for small local models.
+
+## dom harness (optional HTML/JS DOM read plugin)
+
+Enable/disable:
+
+```bash
+export HARNESS_DOM_ENABLED=1   # default
+export HARNESS_DOM_ENABLED=0   # deterministic disabled error
+```
+
+Examples:
+
+```bash
+npm run cli -- run 'dom --url https://example.com query "a" --top 5 --text'
+npm run cli -- run 'dom --file ./page.html find-text "pricing" --context 60'
+npm run cli -- run 'dom --url https://example.com extract links --contains docs'
+npm run cli -- run 'dom --url https://example.com snapshot --schema compact'
+```
+
+Spec: `docs/dom-harness-spec.md`.

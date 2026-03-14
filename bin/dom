@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+import { getConfig } from '../src/config.js';
+import { runDomCli } from '../src/dom.js';
+
+const cfg = getConfig();
+const res = await runDomCli(process.argv.slice(2), cfg);
+if (res.stdout?.length) process.stdout.write(res.stdout);
+if (res.stderr?.length) process.stderr.write(res.stderr);
+process.exit(res.exitCode ?? 0);

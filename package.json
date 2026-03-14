@@ -4,11 +4,16 @@
   "type": "module",
   "main": "src/cli.js",
   "openclaw": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "scripts": {
     "start": "node src/server.js",
     "cli": "node src/cli.js",
     "test": "node --test"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
   }
 }
