@@ -18,10 +18,13 @@
       "artifactDir": { "type": "string" },
       "useLlmPresenter": { "type": "boolean" },
       "llmModel": { "type": "string" },
+      "llmDefaultModel": { "type": "string" },
       "llmEndpoints": {
         "type": "array",
         "items": { "type": "string" }
       },
+      "llmToolsEnabled": { "type": "boolean" },
+      "llmTimeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000 },
       "domEnabled": { "type": "boolean" },
       "domActEnabled": { "type": "boolean" }
     }

@@ -107,7 +107,32 @@ Environment:
 ```bash
 export HARNESS_USE_LLM_PRESENTER=1
 export HARNESS_LLM_MODEL="your-local-model"
+export HARNESS_LLM_DEFAULT_MODEL="your-local-model"
 export HARNESS_LLM_ENDPOINTS="http://127.0.0.1:8080,http://127.0.0.1:8081"
+export HARNESS_LLM_TOOLS_ENABLED=1
+export HARNESS_LLM_TIMEOUT_MS=12000
+```
+
+## llm command family (local llama.cpp)
+
+Spec: `docs/llm-harness-spec.md`
+
+```bash
+# endpoint checks
+npm run cli -- run 'llm health --json | jq -c .'
+
+# list models (text/json)
+npm run cli -- run 'llm models'
+npm run cli -- run 'llm models --json | jq -r ".models[]"'
+
+# chat
+npm run cli -- run 'llm chat "summarize this in 5 words" --temp 0 --max-tokens 32'
+
+# embeddings (graceful unsupported error if endpoint lacks /v1/embeddings)
+npm run cli -- run 'llm embed "database timeout" --json | jq -c .'
+
+# tokenization (fallback estimate when unsupported)
+npm run cli -- run 'llm tokenize "hello world" --json | jq -c .'
 ```
 
 ## Sandbox runtime requirements
@@ -214,8 +239,11 @@ Troubleshooting:
 - `src/server.js`
 - `src/cli.js`
 - `src/mgrep.js`
+- `src/llm.js`
 - `bin/mgrep`
+- `bin/llm`
 - `test/harness.test.js`
+- `test/llm.test.js`
 
 
 ## Local-model-first profile

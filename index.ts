@@ -13,9 +13,12 @@ function buildCfg(root: string, overrides: any = {}) {
     maxLines: Number(overrides.maxLines ?? process.env.HARNESS_MAX_LINES ?? 200),
     useLlmPresenter: Boolean(overrides.useLlmPresenter ?? ((process.env.HARNESS_USE_LLM_PRESENTER || "0") === "1")),
     llmModel: overrides.llmModel || process.env.HARNESS_LLM_MODEL || "local-model",
+    llmDefaultModel: overrides.llmDefaultModel || process.env.HARNESS_LLM_DEFAULT_MODEL || overrides.llmModel || process.env.HARNESS_LLM_MODEL || "local-model",
     llmEndpoints: Array.isArray(overrides.llmEndpoints)
       ? overrides.llmEndpoints
       : (process.env.HARNESS_LLM_ENDPOINTS || "http://127.0.0.1:8080,http://127.0.0.1:8081").split(",").map((s) => s.trim()).filter(Boolean),
+    llmToolsEnabled: String(overrides.llmToolsEnabled ?? process.env.HARNESS_LLM_TOOLS_ENABLED ?? "1") === "1",
+    llmTimeoutMs: Number(overrides.llmTimeoutMs ?? process.env.HARNESS_LLM_TIMEOUT_MS ?? 12000),
     domEnabled: String(overrides.domEnabled ?? process.env.HARNESS_DOM_ENABLED ?? "1") === "1",
     domActEnabled: String(overrides.domActEnabled ?? process.env.HARNESS_DOM_ACT_ENABLED ?? "0") === "1"
   };

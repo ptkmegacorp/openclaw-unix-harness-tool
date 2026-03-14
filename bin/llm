@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+import { getConfig } from '../src/config.js';
+import { executeLlmSegment } from '../src/llm.js';
+
+const segment = process.argv.slice(2).join(' ');
+const cfg = getConfig();
+const result = await executeLlmSegment(`llm ${segment}`, cfg);
+if (result.stdout?.length) process.stdout.write(result.stdout);
+if (result.stderr?.length) process.stderr.write(result.stderr);
+process.exit(result.exitCode ?? 1);
