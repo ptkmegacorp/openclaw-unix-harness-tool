@@ -140,3 +140,15 @@ Store as JSONL in `./logs/run-trace.jsonl`.
 - Requires explicit `HARNESS_DOM_ACT_ENABLED=1` toggle.
 - Allowed targets: localhost/loopback/*.local/home.local/private LAN ranges only.
 - Non-local targets are rejected deterministically.
+
+## 9) DOM read contracts (Class A)
+The following DOM read commands are explicitly Class A (read-only) and deterministic:
+- `dom pick`
+- `dom near`
+- `dom diff`
+
+Design constraints:
+- Stream-first: supports file/URL/stdin input and JSON/JSONL outputs suitable for piping.
+- Orthogonal flags: source flags independent from subcommand-specific extraction flags.
+- Deterministic: stable key ordering and deterministic tie-breaking in `near` selection.
+- Composable output: compact JSON designed for `jq`, `sed`, and `awk` post-processing.

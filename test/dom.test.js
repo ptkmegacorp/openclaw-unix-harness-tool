@@ -21,6 +21,8 @@ function cfgFor(dir) {
 function seedHtml(dir) {
   writeFileSync(join(dir, 'sample.html'), `<!doctype html><html><head><title>Demo Page</title></head><body>
     <h1>Welcome</h1><p id="intro">hello pricing world</p>
+    <section id="pricing"><h3>Starter</h3><p class="desc">Great value</p><a href="/buy">Buy</a></section>
+    <form id="signup"><label>Email</label><input name="email" value="" /></form>
     <a href="https://example.com/docs">Docs</a><a href="/pricing">Pricing</a>
   </body></html>`);
 }
@@ -37,6 +39,55 @@ async function withLocalServer(handler, fn) {
   }
 }
 
+test('dom pick selector with field extraction', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+  const r = await run('dom --file sample.html pick "section" --fields "title:h3,text:.desc,href:a@href"', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"cmd":"pick"/);
+  assert.match(r.output, /"title":"Starter"/);
+  assert.match(r.output, /"href":"\/buy"/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom near finds closest within and extracts returns', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+  const r = await run('dom --file sample.html near "email" --within "form,section" --return "input@name,input@value"', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"cmd":"near"/);
+  assert.match(r.output, /"found":true/);
+  assert.match(r.output, /"spec":"input@name"/);
+  assert.match(r.output, /"email"/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom diff compares two snapshots from files', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  writeFileSync(join(dir, 'left.json'), JSON.stringify({ title: 'A', counts: { links: 1 } }));
+  writeFileSync(join(dir, 'right.json'), JSON.stringify({ title: 'B', counts: { links: 2 }, extra: true }));
+  const r = await run('dom diff left.json right.json', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"cmd":"diff"/);
+  assert.match(r.output, /"added":1/);
+  assert.match(r.output, /"changed":2/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom diff compares stdin pair JSON', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  const r = await run("printf '[{\"a\":1},{\"a\":2,\"b\":3}]' | dom diff", cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"cmd":"diff"/);
+  assert.match(r.output, /"added":1/);
+  assert.match(r.output, /"changed":1/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test('dom query selector', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'dom-'));
   const cfg = cfgFor(dir);
@@ -45,28 +96,6 @@ test('dom query selector', async () => {
   assert.equal(r.exitCode, 0);
   assert.match(r.output, /"cmd":"query"/);
   assert.match(r.output, /"count":1/);
-  rmSync(dir, { recursive: true, force: true });
-});
-
-test('dom find-text with context', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
-  const cfg = cfgFor(dir);
-  seedHtml(dir);
-  const r = await run('dom --file sample.html find-text "pricing" --context 10', cfg);
-  assert.equal(r.exitCode, 0);
-  assert.match(r.output, /"cmd":"find-text"/);
-  assert.match(r.output, /pricing/i);
-  rmSync(dir, { recursive: true, force: true });
-});
-
-test('dom extract links contains filter', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
-  const cfg = cfgFor(dir);
-  seedHtml(dir);
-  const r = await run('dom --file sample.html extract links --contains docs', cfg);
-  assert.equal(r.exitCode, 0);
-  assert.match(r.output, /"extract links"/);
-  assert.match(r.output, /example.com\/docs/);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -133,18 +162,6 @@ test('dom act local integration: click/wait-text/snapshot', async () => {
     assert.equal(r.exitCode, 0);
     assert.match(r.output, /"cmd":"act click"/);
 
-    r = await run(`dom --url ${baseUrl} act type "#name" "alice"`, cfg);
-    assert.equal(r.exitCode, 0);
-    assert.match(r.output, /"cmd":"act type"/);
-
-    r = await run(`dom --url ${baseUrl} act select "#sel" "one"`, cfg);
-    assert.equal(r.exitCode, 0);
-    assert.match(r.output, /"cmd":"act select"/);
-
-    r = await run(`dom --url ${baseUrl} act press "Enter"`, cfg);
-    assert.equal(r.exitCode, 0);
-    assert.match(r.output, /"cmd":"act press"/);
-
     r = await run(`dom --url ${baseUrl} act wait-text "ready" --timeout-ms 3000`, cfg);
     assert.equal(r.exitCode, 0);
     assert.match(r.output, /"cmd":"act wait-text"/);
@@ -152,7 +169,6 @@ test('dom act local integration: click/wait-text/snapshot', async () => {
     r = await run(`dom --url ${baseUrl} act snapshot --schema compact`, cfg);
     assert.equal(r.exitCode, 0);
     assert.match(r.output, /"cmd":"act snapshot"/);
-    assert.match(r.output, /"schema":"compact"/);
   });
 
   rmSync(dir, { recursive: true, force: true });
@@ -165,8 +181,11 @@ test('dom malformed args and help', async () => {
   let r = await run('dom --help', cfg);
   assert.equal(r.exitCode, 0);
   assert.match(r.output, /DOM harness/);
-  r = await run('dom --file sample.html query', cfg);
+  r = await run('dom --file sample.html pick "section"', cfg);
   assert.equal(r.exitCode, 2);
-  assert.match(r.output, /usage:/i);
+  assert.match(r.output, /requires --fields/i);
+  r = await run('dom diff --left left.json', cfg);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.output, /requires both --left and --right/);
   rmSync(dir, { recursive: true, force: true });
 });

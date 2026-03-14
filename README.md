@@ -224,3 +224,29 @@ Safety model:
 - Act requires explicit `HARNESS_DOM_ACT_ENABLED=1`.
 - Act rejects non-local URLs (localhost/loopback/*.local/private LAN only).
 - Non-local error: `[error] dom act local-only: URL not allowed (<url>)`.
+
+## DOM read extras: `pick`, `near`, `diff`
+
+Examples:
+
+```bash
+# pick structured fields from matched cards
+npm run cli -- run 'dom --file sample.html pick "section.card" --fields "title:h3,text:.desc,href:a@href"'
+
+# JSONL mode for unix pipelines
+npm run cli -- run 'dom --file sample.html pick "li" --fields "text:." --jsonl | jq -c .'
+
+# find nearest context containing text and extract targets
+npm run cli -- run 'dom --file sample.html near "email" --within "form,section" --return "input@name,input@value"'
+
+# diff compact snapshots from files
+npm run cli -- run 'dom diff before.json after.json'
+
+# diff inline stdin pair
+npm run cli -- run 'printf "[{\"title\":\"A\"},{\"title\":\"B\"}]" | dom diff'
+```
+
+Composability tips:
+- Use `jq` for field slicing/aggregation.
+- Use `sed`/`awk` for lightweight stream transformations.
+- `--jsonl` on `dom pick` is ideal for line-oriented pipelines.

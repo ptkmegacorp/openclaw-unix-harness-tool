@@ -3,7 +3,7 @@
 ## Goals
 - Token-efficient HTML extraction for LLM workflows.
 - Deterministic compact JSON outputs.
-- Safe by default with explicit higher-risk act toggle.
+- Unix-style composability: stream-first outputs, orthogonal flags, jq/sed/awk friendly.
 
 ## Command Surface
 All commands run under `dom`.
@@ -15,9 +15,41 @@ All commands run under `dom`.
 
 ### Read commands (Class A)
 - `dom [--url URL|--file FILE] query "<selector>" [--top N] [--text]`
+- `dom [--url URL|--file FILE] pick "<selector>" --fields "name:sel,name2:sel@attr" [--top N] [--jsonl]`
+- `dom [--url URL|--file FILE] near "<needle text>" --within "form,section" --return "input@name,input@value"`
 - `dom [--url URL|--file FILE] find-text "<text>" [--context N]`
 - `dom [--url URL|--file FILE] extract links [--contains X]`
 - `dom [--url URL|--file FILE] snapshot --schema compact`
+- `dom diff [left.json right.json]`
+- `dom diff --left left.json --right right.json`
+- `cat pair.json | dom diff` where `pair.json` is `[left,right]` or `{"left":...,"right":...}`
+
+### pick contract
+- Inputs:
+  - positional selector (`<selector>`) selects row roots.
+  - `--fields` CSV of `name:selector` or `name:selector@attr`.
+- Output:
+  - default: `{"cmd":"pick","selector":"...","count":N,"rows":[...]}`
+  - with `--jsonl`: one JSON object per line (no wrapper), stable field order.
+
+### near contract
+- Inputs:
+  - positional needle text.
+  - `--within` CSV of candidate container selectors (default `body`).
+  - `--return` CSV of `selector` or `selector@attr` extracted from selected container.
+- Selection:
+  - candidate containers must contain needle (case-insensitive).
+  - best container is deterministic: smallest text length, then shallowest depth, then earliest occurrence.
+- Output:
+  - `{"cmd":"near","found":bool,"context":...,"returns":[{"spec":"...","values":[...]}]}`
+
+### diff contract
+- Inputs:
+  - two JSON snapshots via files/flags or stdin.
+  - stdin accepted forms: `[left,right]`, `{left,right}`, or two JSON lines.
+- Output:
+  - `{"cmd":"diff","counts":{"added":A,"removed":R,"changed":C},"keyPaths":{...}}`
+  - `keyPaths` contains deterministic sorted path samples (up to 20 each).
 
 ### Act commands (Class B, local-only)
 - `dom --url <local-url> act click "<selector>"`
@@ -44,6 +76,6 @@ Disabled act error:
 - `[error] dom act disabled (HARNESS_DOM_ACT_ENABLED=0)`
 
 ## Output contract
-- STDOUT: single compact JSON line + newline.
+- STDOUT: compact JSON + newline.
 - STDERR: deterministic `[error] ...` messages.
-- `snapshot --schema compact` is deterministic and token-efficient.
+- Read commands (`query/pick/near/find-text/extract/snapshot/diff`) are Class A.
