@@ -15,6 +15,7 @@ export function getConfig() {
     useLlmPresenter: (process.env.HARNESS_USE_LLM_PRESENTER || '0') === '1',
     llmModel: process.env.HARNESS_LLM_MODEL || 'local-model',
     llmEndpoints: (process.env.HARNESS_LLM_ENDPOINTS || 'http://127.0.0.1:8080,http://127.0.0.1:8081').split(',').map((s) => s.trim()).filter(Boolean),
-    domEnabled: (process.env.HARNESS_DOM_ENABLED || '1') === '1'
+    domEnabled: (process.env.HARNESS_DOM_ENABLED || '1') === '1',
+    domActEnabled: (process.env.HARNESS_DOM_ACT_ENABLED || '0') === '1'
   };
 }

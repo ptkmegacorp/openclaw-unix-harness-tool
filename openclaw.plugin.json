@@ -22,7 +22,8 @@
         "type": "array",
         "items": { "type": "string" }
       },
-      "domEnabled": { "type": "boolean" }
+      "domEnabled": { "type": "boolean" },
+      "domActEnabled": { "type": "boolean" }
     }
   }
 }

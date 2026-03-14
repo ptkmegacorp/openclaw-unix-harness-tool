@@ -198,3 +198,29 @@ npm run cli -- run 'dom --url https://example.com snapshot --schema compact'
 ```
 
 Spec: `docs/dom-harness-spec.md`.
+
+
+### DOM Act mode (local-only)
+
+Environment toggles:
+```bash
+export HARNESS_DOM_ENABLED=1      # default
+export HARNESS_DOM_ACT_ENABLED=0  # default (disabled)
+export HARNESS_DOM_ACT_ENABLED=1  # enable act mode
+```
+
+Act commands:
+```bash
+npm run cli -- run 'dom --url http://127.0.0.1:3000 act click "#submit"'
+npm run cli -- run 'dom --url http://127.0.0.1:3000 act type "#q" "hello"'
+npm run cli -- run 'dom --url http://127.0.0.1:3000 act select "#plan" "pro"'
+npm run cli -- run 'dom --url http://127.0.0.1:3000 act press "Enter"'
+npm run cli -- run 'dom --url http://127.0.0.1:3000 act wait-text "ready" --timeout-ms 5000'
+npm run cli -- run 'dom --url http://127.0.0.1:3000 act snapshot --schema compact'
+```
+
+Safety model:
+- Act commands are policy Class B (audited).
+- Act requires explicit `HARNESS_DOM_ACT_ENABLED=1`.
+- Act rejects non-local URLs (localhost/loopback/*.local/private LAN only).
+- Non-local error: `[error] dom act local-only: URL not allowed (<url>)`.

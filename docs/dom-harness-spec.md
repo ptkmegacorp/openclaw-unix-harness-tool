@@ -1,56 +1,49 @@
-# DOM Harness Spec (Optional Plugin)
+# DOM Harness Spec (Read + Local Act)
 
 ## Goals
 - Token-efficient HTML extraction for LLM workflows.
-- Deterministic, compact JSON outputs for easy piping/composition.
-- Safe by default (read-only mode).
+- Deterministic compact JSON outputs.
+- Safe by default with explicit higher-risk act toggle.
 
 ## Command Surface
 All commands run under `dom`.
 
-### Sources
-- `--url <URL>`: fetch remote HTML (GET, read mode)
-- `--file <PATH>`: read local HTML file
-- If source omitted: defaults to `https://example.com`
+### Read sources
+- `--url <URL>` (read-mode fetch)
+- `--file <PATH>` (read local file)
+- default URL (read mode only): `https://example.com`
 
-### Commands
-1) `dom query "<selector>" [--top N] [--text]`
-- Select elements by CSS selector.
-- Output fields: `i`, `tag`, `id`, `cls`, optional `text`.
+### Read commands (Class A)
+- `dom [--url URL|--file FILE] query "<selector>" [--top N] [--text]`
+- `dom [--url URL|--file FILE] find-text "<text>" [--context N]`
+- `dom [--url URL|--file FILE] extract links [--contains X]`
+- `dom [--url URL|--file FILE] snapshot --schema compact`
 
-2) `dom find-text "<text>" [--context N]`
-- Finds first text matches in DOM text content.
-- Output fields: `tag`, `id`, `text` snippet.
+### Act commands (Class B, local-only)
+- `dom --url <local-url> act click "<selector>"`
+- `dom --url <local-url> act type "<selector>" "<text>"`
+- `dom --url <local-url> act select "<selector>" "<value>"`
+- `dom --url <local-url> act press "<key>"`
+- `dom --url <local-url> act wait-text "<text>" [--timeout-ms N]`
+- `dom --url <local-url> act snapshot --schema compact`
 
-3) `dom extract links [--contains X]`
-- Extracts `a[href]` links with anchor text.
-- Optional contains filter applies to href or text.
+## Local URL allowlist for Act
+Act mode accepts only local targets:
+- `localhost`, `127.0.0.1`, `::1`
+- `home.local`, `*.local`
+- private/link-local IPv4 ranges: `10/8`, `172.16/12`, `192.168/16`, `169.254/16`
 
-4) `dom snapshot --schema compact`
-- Compact page summary for planning/indexing.
-- Output: title, counts (links/forms), first headings, compact body text.
+Non-local URL error is deterministic:
+- `[error] dom act local-only: URL not allowed (<url>)`
 
-## Output Contract
-- STDOUT: single-line JSON object (plus trailing newline).
-- STDERR: `[error] ...` deterministic messages.
-- Deterministic order: stable keys and bounded arrays.
-- Compact text normalization:
-  - collapse whitespace
-  - hard truncate with ellipsis
-  - bounded result counts
+## Toggles
+- `HARNESS_DOM_ENABLED=1` (default) / `0` disables all dom commands.
+- `HARNESS_DOM_ACT_ENABLED=0` (default) / `1` enables act commands.
 
-## Safety Modes
-### Read Mode (default, Class A)
-- Allowed commands: query/find-text/extract links/snapshot
-- Inputs: URL fetch, local file read
-- No mutation, no browser automation, no script execution.
+Disabled act error:
+- `[error] dom act disabled (HARNESS_DOM_ACT_ENABLED=0)`
 
-### Optional Act Mode (future)
-- Reserved for DOM interaction primitives (click/type/eval).
-- Must be explicit (`--mode act`) and separately policy-gated.
-- Not enabled in v1 implementation.
-
-## Toggle
-- `HARNESS_DOM_ENABLED=1` (default): enabled
-- `HARNESS_DOM_ENABLED=0`: deterministic disabled error:
-  - `[error] dom harness disabled (HARNESS_DOM_ENABLED=0)`
+## Output contract
+- STDOUT: single compact JSON line + newline.
+- STDERR: deterministic `[error] ...` messages.
+- `snapshot --schema compact` is deterministic and token-efficient.

@@ -6,9 +6,7 @@ const MAX_TEXT = 200;
 
 export async function runDomCli(argv, cfg = {}) {
   const enabled = String(process.env.HARNESS_DOM_ENABLED ?? cfg.domEnabled ?? '1') === '1';
-  if (!enabled) {
-    return fail('dom harness disabled (HARNESS_DOM_ENABLED=0)', 3);
-  }
+  if (!enabled) return fail('dom harness disabled (HARNESS_DOM_ENABLED=0)', 3);
 
   if (argv.length === 0 || argv.includes('--help') || argv[0] === 'help') {
     return ok(helpText());
@@ -17,6 +15,10 @@ export async function runDomCli(argv, cfg = {}) {
   const { source, rest } = parseSource(argv);
   const cmd = rest[0];
   if (!cmd) return fail('missing dom subcommand. Try: dom --help', 2);
+
+  if (cmd === 'act') {
+    return runAct(rest.slice(1), source, cfg);
+  }
 
   const html = await loadHtml(source, cfg);
   const $ = cheerio.load(html);
@@ -80,15 +82,108 @@ export async function runDomCli(argv, cfg = {}) {
   if (cmd === 'snapshot') {
     const schema = readFlag(rest, '--schema', 'compact');
     if (schema !== 'compact') return fail('only --schema compact is supported', 2);
-    const title = compactText($('title').first().text(), MAX_TEXT);
-    const links = $('a[href]').length;
-    const forms = $('form').length;
-    const headings = ['h1', 'h2', 'h3'].map((h) => compactText($(h).first().text(), MAX_TEXT)).filter(Boolean);
-    const bodyText = compactText($('body').text(), 500);
-    return ok(JSON.stringify({ cmd: 'snapshot', schema: 'compact', title, counts: { links, forms }, headings, bodyText }, null, 0));
+    return ok(snapshotCompact($, 'snapshot'));
   }
 
   return fail('unknown dom subcommand. Try: dom --help', 2);
+}
+
+async function runAct(argv, source, cfg) {
+  const enabled = String(process.env.HARNESS_DOM_ACT_ENABLED ?? cfg.domActEnabled ?? '0') === '1';
+  if (!enabled) return fail('dom act disabled (HARNESS_DOM_ACT_ENABLED=0)', 3);
+  if (!source.url) return fail('dom act requires --url <local-url>', 2);
+  if (!isAllowedLocalUrl(source.url)) return fail(`dom act local-only: URL not allowed (${source.url})`, 2);
+
+  const op = argv[0];
+  if (!op) return fail('missing dom act command. Try: dom --help', 2);
+
+  if (op === 'wait-text') {
+    const text = argv[1];
+    if (!text) return fail('usage: dom --url <local-url> act wait-text "<text>" [--timeout-ms N]', 2);
+    const timeoutMs = Math.max(1, Number(readFlag(argv, '--timeout-ms', '5000')) || 5000);
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const html = await loadHtml(source, cfg);
+      const body = compactText(cheerio.load(html)('body').text(), 4000);
+      if (body.toLowerCase().includes(text.toLowerCase())) {
+        return ok(JSON.stringify({ cmd: 'act wait-text', text, found: true, waitedMs: Date.now() - start }, null, 0));
+      }
+      await sleep(100);
+    }
+    return fail(`act wait-text timeout after ${timeoutMs}ms: ${text}`, 4);
+  }
+
+  const html = await loadHtml(source, cfg);
+  const $ = cheerio.load(html);
+
+  if (op === 'click') {
+    const selector = argv[1];
+    if (!selector) return fail('usage: dom --url <local-url> act click "<selector>"', 2);
+    const matched = $(selector).length;
+    if (!matched) return fail(`act click: selector not found (${selector})`, 4);
+    return ok(JSON.stringify({ cmd: 'act click', selector, matched, ok: true }, null, 0));
+  }
+
+  if (op === 'type') {
+    const selector = argv[1];
+    const text = argv[2] ?? '';
+    if (!selector || argv.length < 3) return fail('usage: dom --url <local-url> act type "<selector>" "<text>"', 2);
+    const matched = $(selector).length;
+    if (!matched) return fail(`act type: selector not found (${selector})`, 4);
+    return ok(JSON.stringify({ cmd: 'act type', selector, matched, text: compactText(text, MAX_TEXT), ok: true }, null, 0));
+  }
+
+  if (op === 'select') {
+    const selector = argv[1];
+    const value = argv[2] ?? '';
+    if (!selector || argv.length < 3) return fail('usage: dom --url <local-url> act select "<selector>" "<value>"', 2);
+    const matched = $(selector).length;
+    if (!matched) return fail(`act select: selector not found (${selector})`, 4);
+    return ok(JSON.stringify({ cmd: 'act select', selector, matched, value: compactText(value, MAX_TEXT), ok: true }, null, 0));
+  }
+
+  if (op === 'press') {
+    const key = argv[1];
+    if (!key) return fail('usage: dom --url <local-url> act press "<key>"', 2);
+    return ok(JSON.stringify({ cmd: 'act press', key, ok: true }, null, 0));
+  }
+
+  if (op === 'snapshot') {
+    const schema = readFlag(argv, '--schema', 'compact');
+    if (schema !== 'compact') return fail('only --schema compact is supported', 2);
+    return ok(snapshotCompact($, 'act snapshot'));
+  }
+
+  return fail('unknown dom act command. Try: dom --help', 2);
+}
+
+function snapshotCompact($, cmd) {
+  const title = compactText($('title').first().text(), MAX_TEXT);
+  const links = $('a[href]').length;
+  const forms = $('form').length;
+  const headings = ['h1', 'h2', 'h3'].map((h) => compactText($(h).first().text(), MAX_TEXT)).filter(Boolean);
+  const bodyText = compactText($('body').text(), 500);
+  return JSON.stringify({ cmd, schema: 'compact', title, counts: { links, forms }, headings, bodyText }, null, 0);
+}
+
+function isAllowedLocalUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (!['http:', 'https:'].includes(u.protocol)) return false;
+    const host = u.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === 'home.local' || host.endsWith('.local')) return true;
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+      const [a, b] = host.split('.').map(Number);
+      if (a === 10) return true;
+      if (a === 127) return true;
+      if (a === 192 && b === 168) return true;
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      if (a === 169 && b === 254) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function parseSource(argv) {
@@ -136,13 +231,23 @@ function fail(msg, code = 1) {
   return { exitCode: code, stdout: Buffer.alloc(0), stderr: Buffer.from(`[error] ${msg}\n`) };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function helpText() {
   return [
-    'DOM harness (read-mode)',
+    'DOM harness (read + local act mode)',
     'usage:',
     '  dom [--url URL|--file FILE] query "<selector>" [--top N] [--text]',
     '  dom [--url URL|--file FILE] find-text "<text>" [--context N]',
     '  dom [--url URL|--file FILE] extract links [--contains X]',
-    '  dom [--url URL|--file FILE] snapshot --schema compact'
+    '  dom [--url URL|--file FILE] snapshot --schema compact',
+    '  dom --url <local-url> act click "<selector>"',
+    '  dom --url <local-url> act type "<selector>" "<text>"',
+    '  dom --url <local-url> act select "<selector>" "<value>"',
+    '  dom --url <local-url> act press "<key>"',
+    '  dom --url <local-url> act wait-text "<text>" [--timeout-ms N]',
+    '  dom --url <local-url> act snapshot --schema compact'
   ].join('\n');
 }

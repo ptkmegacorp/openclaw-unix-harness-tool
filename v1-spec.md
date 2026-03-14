@@ -133,3 +133,10 @@ Store as JSONL in `./logs/run-trace.jsonl`.
 3. Safety gates + policy classes
 4. Trace logging
 5. Regression tests (see `v1-test-matrix.md`)
+
+
+## 8) DOM act mode safety (local-only)
+- `dom ... act ...` is classified as Class B (audited).
+- Requires explicit `HARNESS_DOM_ACT_ENABLED=1` toggle.
+- Allowed targets: localhost/loopback/*.local/home.local/private LAN ranges only.
+- Non-local targets are rejected deterministically.
