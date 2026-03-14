@@ -18,6 +18,8 @@ All commands run under `dom`.
 - `dom [--url URL|--file FILE] pick "<selector>" --fields "name:sel,name2:sel@attr" [--top N] [--jsonl]`
 - `dom [--url URL|--file FILE] near "<needle text>" --within "form,section" --return "input@name,input@value"`
 - `dom [--url URL|--file FILE] find-text "<text>" [--context N]`
+- `dom [--url URL|--file FILE] path --selector "<selector>" [--style css|ancestry] [--depth N] [--top N]`
+- `dom [--url URL|--file FILE] path --text "<needle>" [--style css|ancestry] [--depth N] [--top N]`
 - `dom [--url URL|--file FILE] extract links [--contains X]`
 - `dom [--url URL|--file FILE] snapshot --schema compact`
 - `dom diff [left.json right.json]`
@@ -42,6 +44,21 @@ All commands run under `dom`.
   - best container is deterministic: smallest text length, then shallowest depth, then earliest occurrence.
 - Output:
   - `{"cmd":"near","found":bool,"context":...,"returns":[{"spec":"...","values":[...]}]}`
+
+### path contract
+- Purpose:
+  - generate stable CSS selectors/ancestry paths from selector/text/previous dom output where feasible.
+- Inputs:
+  - selector mode: `--selector "<sel>"`
+  - text mode: `--text "<needle>"`
+  - pipeline mode: stdin JSON/JSONL rows from prior `dom` commands (best-effort resolution by `cssPath|selector|id|text|tag`).
+  - flags: `--style css|ancestry` (default `css`), `--depth N`, `--top N`.
+- Output row shape (deterministic, compact):
+  - `tag`, `id`, `classes[]`, `cssPath`, `ancestry[]` (plus metadata fields).
+
+Examples:
+- `dom near "Buy Now" | dom path --style css`
+- `dom pick ".price" | dom path --depth 3`
 
 ### diff contract
 - Inputs:
@@ -78,4 +95,4 @@ Disabled act error:
 ## Output contract
 - STDOUT: compact JSON + newline.
 - STDERR: deterministic `[error] ...` messages.
-- Read commands (`query/pick/near/find-text/extract/snapshot/diff`) are Class A.
+- Read commands (`query/pick/near/path/find-text/extract/snapshot/diff`) are Class A.

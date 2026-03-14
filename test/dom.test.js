@@ -21,7 +21,8 @@ function cfgFor(dir) {
 function seedHtml(dir) {
   writeFileSync(join(dir, 'sample.html'), `<!doctype html><html><head><title>Demo Page</title></head><body>
     <h1>Welcome</h1><p id="intro">hello pricing world</p>
-    <section id="pricing"><h3>Starter</h3><p class="desc">Great value</p><a href="/buy">Buy</a></section>
+    <section id="pricing"><h3>Starter</h3><p class="desc">Great value</p><button class="cta">Buy Now</button><a href="/buy">Buy</a></section>
+    <ul><li class="price">$10</li><li class="price">$20</li></ul>
     <form id="signup"><label>Email</label><input name="email" value="" /></form>
     <a href="https://example.com/docs">Docs</a><a href="/pricing">Pricing</a>
   </body></html>`);
@@ -170,6 +171,67 @@ test('dom act local integration: click/wait-text/snapshot', async () => {
     assert.equal(r.exitCode, 0);
     assert.match(r.output, /"cmd":"act snapshot"/);
   });
+
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom path selector mode emits deterministic path rows', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+  const r = await run('dom --file sample.html path --selector ".price" --top 1', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"cmd":"path"/);
+  assert.match(r.output, /"mode":"selector"/);
+  assert.match(r.output, /"tag":"li"/);
+  assert.match(r.output, /"cssPath":"/);
+  assert.match(r.output, /"ancestry":\[/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom path text mode finds Buy Now and supports style/depth/top', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+  const r = await run('dom --file sample.html path --text "Buy Now" --style ancestry --depth 3 --top 1', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"mode":"text"/);
+  assert.match(r.output, /"style":"ancestry"/);
+  assert.match(r.output, /"count":1/);
+  assert.match(r.output, /"ancestry":\[(?:.|\n)*\]/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom path supports pipeline input from dom pick jsonl', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+  const r = await run('dom --file sample.html pick ".price" --fields "id:.@id,text:." --jsonl | dom --file sample.html path --depth 3 --top 2', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"cmd":"path"/);
+  assert.match(r.output, /"mode":"stdin"/);
+  assert.match(r.output, /"count":2/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom path malformed args and help', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+
+  let r = await run('dom --help', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /dom .* path --selector/);
+
+  r = await run('dom --file sample.html path --selector "a" --text "Buy"', cfg);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.output, /either --selector or --text/);
+
+  r = await run('dom --file sample.html path --selector "a" --style nope', cfg);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.output, /--style must be one of/);
+
+  // stdin-only mode is exercised in pipeline tests.
 
   rmSync(dir, { recursive: true, force: true });
 });

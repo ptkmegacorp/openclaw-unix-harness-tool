@@ -13,6 +13,9 @@ with strict semantics and safety rails so agents can compose workflows reliably 
 
 ## Layer 1: Execution (Unix semantics, lossless)
 - Parse and execute chain operators: `|`, `&&`, `||`, `;`
+- Route each chain segment through a backend manager
+  - `NativeBackend`: typed/in-process command handlers (no host shell)
+  - `SandboxBackend`: concrete isolated runtime selector (`boxlite` preferred, `docker/podman` fallback, unavailable error if none)
 - Preserve raw stdout/stderr bytes internally
 - Preserve exact exit codes per stage
 - No truncation, no metadata injection in pipeline data path
@@ -134,6 +137,15 @@ Store as JSONL in `./logs/run-trace.jsonl`.
 4. Trace logging
 5. Regression tests (see `v1-test-matrix.md`)
 
+Current sandbox status: concrete runtime-backed sandbox selection is implemented behind the same backend interface.
+
+Selection order:
+1. boxlite
+2. docker/podman
+3. unavailable error (no host fallback for class B/C)
+
+Sandbox health/status should expose provider/runtime availability and deterministic initialization errors.
+
 
 ## 8) DOM act mode safety (local-only)
 - `dom ... act ...` is classified as Class B (audited).
@@ -145,7 +157,14 @@ Store as JSONL in `./logs/run-trace.jsonl`.
 The following DOM read commands are explicitly Class A (read-only) and deterministic:
 - `dom pick`
 - `dom near`
+- `dom path`
 - `dom diff`
+
+`dom path` purpose:
+- generate stable CSS selectors and ancestry paths from:
+  - explicit selector mode (`--selector`)
+  - text mode (`--text`)
+  - piped JSON/JSONL rows from prior `dom` command output where feasible.
 
 Design constraints:
 - Stream-first: supports file/URL/stdin input and JSON/JSONL outputs suitable for piping.

@@ -4,10 +4,15 @@ Unix-native single-surface harness implementing `run(command)` with robust opera
 
 ## Features
 
-- **Modules**: parser / executor / presenter / policy / trace / server
+- **Modules**: parser / executor / backends(manager/native/sandbox) / presenter / policy / trace / server
 - **Operators**: `|`, `&&`, `||`, `;` with quote-aware chain parsing
 - **Two-layer architecture**:
-  - Layer 1: raw execution (stdout/stderr/exit semantics)
+  - Layer 1: raw execution (stdout/stderr/exit semantics) via backend manager
+    - NativeBackend: typed in-process handlers for simple read-only commands (no host shell)
+    - SandboxBackend: concrete isolated runtime selector with preference order:
+      1. boxlite
+      2. docker/podman container sandbox
+      3. hard unavailable error (no host-shell fallback for class B/C)
   - Layer 2: LLM-facing presentation (binary guard, truncation, stderr display, footer)
 - **Safety classes**:
   - A: read-only allowed
@@ -18,6 +23,16 @@ Unix-native single-surface harness implementing `run(command)` with robust opera
 - **Trace**: JSONL rows in `logs/run-trace.jsonl`
 - **HTTP API**: `POST /run { command }`
 - **LLM adapter**: local endpoints health + optional formatting pass via OpenAI-compatible API
+
+## Backend routing policy
+
+- Class **A** (read-only): prefers `NativeBackend` when command shape is supported safely (no shell metacharacters).
+- Class **B/C**: always routed to `SandboxBackend`.
+- If no sandbox runtime is available, class **B/C** returns deterministic error:
+  - `[error] sandbox backend unavailable: no supported runtime detected (boxlite, docker, podman)...`
+- Class **C** still requires explicit confirm gates (`confirmDelete`, `confirmExternalSend`) before any execution.
+
+This keeps compatibility with existing `run(command)` semantics while introducing a clean backend boundary.
 
 ## Install
 
@@ -65,6 +80,8 @@ Health:
 curl -s localhost:8787/health
 ```
 
+Now returns both LLM and sandbox backend status (provider, runtime availability, init errors).
+
 ## CLI
 
 ```bash
@@ -92,6 +109,29 @@ export HARNESS_USE_LLM_PRESENTER=1
 export HARNESS_LLM_MODEL="your-local-model"
 export HARNESS_LLM_ENDPOINTS="http://127.0.0.1:8080,http://127.0.0.1:8081"
 ```
+
+## Sandbox runtime requirements
+
+At least one sandbox runtime must be installed for class B/C commands:
+
+- Preferred: `boxlite`
+- Fallback: `docker` or `podman`
+
+Selection order is automatic (`boxlite` -> `docker/podman`).
+Optional overrides:
+
+- `HARNESS_SANDBOX_PROVIDER=auto|boxlite|docker|podman`
+- `HARNESS_SANDBOX_IMAGE=<image>` (container backend, default `debian:bookworm-slim`)
+
+Isolation model (container/box runtime):
+- No host root filesystem mount
+- Bound mount only for working directory at `/workspace`
+- `--network none`, dropped capabilities, no-new-privileges
+- Timeout enforced by harness with exit code `124`
+
+Known limits:
+- Runtime/image startup latency affects first command
+- Container image must include `sh` and tools needed by executed commands
 
 ## Tests
 
@@ -163,6 +203,10 @@ Troubleshooting:
 
 - `src/parser.js`
 - `src/executor.js`
+- `src/backends/backend.js`
+- `src/backends/manager.js`
+- `src/backends/native.js`
+- `src/backends/sandbox.js`
 - `src/presenter.js`
 - `src/policy.js`
 - `src/trace.js`
@@ -225,7 +269,7 @@ Safety model:
 - Act rejects non-local URLs (localhost/loopback/*.local/private LAN only).
 - Non-local error: `[error] dom act local-only: URL not allowed (<url>)`.
 
-## DOM read extras: `pick`, `near`, `diff`
+## DOM read extras: `pick`, `near`, `path`, `diff`
 
 Examples:
 
@@ -238,6 +282,16 @@ npm run cli -- run 'dom --file sample.html pick "li" --fields "text:." --jsonl |
 
 # find nearest context containing text and extract targets
 npm run cli -- run 'dom --file sample.html near "email" --within "form,section" --return "input@name,input@value"'
+
+# build stable path selectors from a CSS selector
+npm run cli -- run 'dom --file sample.html path --selector ".price" --style css --top 5'
+
+# build ancestry paths from text match
+npm run cli -- run 'dom --file sample.html path --text "Buy Now" --style ancestry --depth 3'
+
+# user-style pipeline examples
+npm run cli -- run 'dom near "Buy Now" --within "section,form" --return "." | dom --file sample.html path --style css'
+npm run cli -- run 'dom --file sample.html pick ".price" --fields "text:." --jsonl | dom --file sample.html path --depth 3'
 
 # diff compact snapshots from files
 npm run cli -- run 'dom diff before.json after.json'

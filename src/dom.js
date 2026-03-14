@@ -53,6 +53,10 @@ export async function runDomCli(argv, cfg = {}) {
     return runNear($, rest.slice(1));
   }
 
+  if (cmd === 'path') {
+    return runPath($, rest.slice(1));
+  }
+
   if (cmd === 'find-text') {
     const needle = (rest[1] || '').toLowerCase();
     if (!needle) return fail('usage: dom [--url U|--file F] find-text "<text>" [--context N]', 2);
@@ -163,6 +167,202 @@ function runNear($, argv) {
     },
     returns
   }, null, 0));
+}
+
+async function runPath($, argv) {
+  const style = readFlag(argv, '--style', 'css');
+  if (!['css', 'ancestry'].includes(style)) {
+    return fail('dom path --style must be one of: css, ancestry', 2);
+  }
+  const depthRaw = Number(readFlag(argv, '--depth', '8'));
+  const depth = Number.isFinite(depthRaw) && depthRaw > 0 ? Math.floor(depthRaw) : 8;
+  const topRaw = Number(readFlag(argv, '--top', '20'));
+  const top = Number.isFinite(topRaw) && topRaw > 0 ? Math.floor(topRaw) : 20;
+
+  const selector = readFlag(argv, '--selector');
+  const text = readFlag(argv, '--text');
+  if (selector && text) return fail('dom path accepts either --selector or --text (not both)', 2);
+
+  let mode = selector ? 'selector' : (text ? 'text' : 'stdin');
+  let rows = [];
+
+  if (selector) {
+    rows = $(selector).slice(0, top).toArray().map((el) => ({ el, via: selector }));
+  } else if (text) {
+    rows = findByText($, text, top).map((el) => ({ el, via: text }));
+  } else {
+    if (process.stdin.isTTY) {
+      return fail('usage: dom [--url U|--file F] path (--selector "<sel>"|--text "<needle>") [--style css|ancestry] [--depth N] [--top N]', 2);
+    }
+    const stdin = await readStdin();
+    if (!stdin.trim()) return fail('usage: dom [--url U|--file F] path (--selector "<sel>"|--text "<needle>") [--style css|ancestry] [--depth N] [--top N]', 2);
+    const inferred = inferCandidatesFromStdin(stdin, $, top);
+    if (!inferred.ok) return fail(inferred.error, 2);
+    mode = inferred.mode;
+    rows = inferred.rows;
+  }
+
+  const outRows = rows.slice(0, top).map(({ el, via }, idx) => buildPathRow($, el, idx, via, depth, style));
+  return ok(JSON.stringify({ cmd: 'path', mode, style, depth, count: outRows.length, rows: outRows }, null, 0));
+}
+
+function inferCandidatesFromStdin(input, $, top) {
+  const objects = [];
+
+  const pushObject = (obj) => {
+    if (obj && typeof obj === 'object') objects.push(obj);
+  };
+
+  try {
+    const parsed = JSON.parse(input);
+    if (Array.isArray(parsed)) {
+      parsed.forEach(pushObject);
+    } else if (parsed && typeof parsed === 'object') {
+      if (Array.isArray(parsed.rows)) parsed.rows.forEach(pushObject);
+      else pushObject(parsed);
+    }
+  } catch {
+    input.split('\n').map((s) => s.trim()).filter(Boolean).forEach((line) => {
+      try { pushObject(JSON.parse(line)); } catch { /* ignore invalid line */ }
+    });
+  }
+
+  if (!objects.length) return { ok: false, error: 'dom path stdin expects JSON/JSONL rows from prior dom commands' };
+
+  const rows = [];
+  for (const obj of objects) {
+    if (rows.length >= top) break;
+    const located = locateElementFromHint($, obj);
+    if (located) rows.push(located);
+  }
+
+  if (!rows.length) return { ok: false, error: 'dom path could not resolve any stdin rows to elements' };
+  return { ok: true, mode: 'stdin', rows };
+}
+
+function locateElementFromHint($, obj) {
+  const sel = typeof obj.cssPath === 'string' ? obj.cssPath
+    : typeof obj.selector === 'string' ? obj.selector
+      : typeof obj.sel === 'string' ? obj.sel
+        : null;
+  if (sel) {
+    const el = $(sel).first().get(0);
+    if (el) return { el, via: sel };
+  }
+
+  if (typeof obj.id === 'string' && obj.id) {
+    const idSel = `#${cssEscape(obj.id)}`;
+    const el = $(idSel).first().get(0);
+    if (el) return { el, via: idSel };
+  }
+
+  if (typeof obj.text === 'string' && obj.text.trim()) {
+    const textNeedle = obj.text.trim();
+    const byText = findByText($, textNeedle, 1)[0];
+    if (byText) return { el: byText, via: textNeedle };
+  }
+
+  if (typeof obj.tag === 'string') {
+    const tag = obj.tag.trim().toLowerCase();
+    if (tag) {
+      let selector = tag;
+      if (typeof obj.cls === 'string' && obj.cls.trim()) selector += `.${obj.cls.trim().replace(/\s+/g, '.')}`;
+      if (Array.isArray(obj.classes) && obj.classes.length) selector += `.${obj.classes.join('.')}`;
+      const el = $(selector).first().get(0) || $(tag).first().get(0);
+      if (el) return { el, via: selector };
+    }
+  }
+
+  return null;
+}
+
+function findByText($, needle, top) {
+  const n = String(needle || '').toLowerCase();
+  if (!n) return [];
+  const out = [];
+  $('*').toArray().forEach((el) => {
+    if (out.length >= top) return;
+    const txt = compactText($(el).text(), 2000).toLowerCase();
+    if (txt.includes(n)) out.push(el);
+  });
+  return out;
+}
+
+function buildPathRow($, el, i, via, depth, style) {
+  const node = $(el);
+  const classes = splitClasses(node.attr('class'));
+  const ancestry = buildAncestry($, el, depth);
+  const cssPath = buildCssPath($, el);
+  return {
+    i,
+    via,
+    style,
+    tag: (el.tagName || '').toLowerCase(),
+    id: node.attr('id') || null,
+    classes,
+    cssPath,
+    ancestry,
+    path: style === 'ancestry' ? ancestry.map((a) => a.node).join(' > ') : cssPath
+  };
+}
+
+function buildCssPath($, el) {
+  const parts = [];
+  let cur = el;
+  while (cur && cur.type === 'tag') {
+    const node = $(cur);
+    const tag = (cur.tagName || '').toLowerCase();
+    const id = node.attr('id');
+    if (id) {
+      parts.unshift(`${tag}#${cssEscape(id)}`);
+      break;
+    }
+
+    const parent = cur.parent;
+    if (!parent || parent.type !== 'tag') {
+      parts.unshift(tag);
+      break;
+    }
+
+    const siblings = parent.children.filter((c) => c.type === 'tag' && (c.tagName || '').toLowerCase() === tag);
+    const idx = siblings.indexOf(cur);
+    const nth = idx >= 0 ? `:nth-of-type(${idx + 1})` : '';
+
+    const cls = splitClasses(node.attr('class')).slice(0, 2).map((c) => `.${cssEscape(c)}`).join('');
+    parts.unshift(`${tag}${cls}${nth}`);
+    cur = parent;
+  }
+  return parts.join(' > ');
+}
+
+function buildAncestry($, el, depth) {
+  const chain = [];
+  let cur = el;
+  while (cur && cur.type === 'tag' && chain.length < depth) {
+    const node = $(cur);
+    const tag = (cur.tagName || '').toLowerCase();
+    const id = node.attr('id') || null;
+    const classes = splitClasses(node.attr('class'));
+    const parent = cur.parent;
+    let nth = 1;
+    if (parent && parent.type === 'tag') {
+      const siblings = parent.children.filter((c) => c.type === 'tag' && (c.tagName || '').toLowerCase() === tag);
+      const idx = siblings.indexOf(cur);
+      nth = idx >= 0 ? idx + 1 : 1;
+    }
+    const cls = classes.slice(0, 2).map((c) => `.${cssEscape(c)}`).join('');
+    chain.unshift({ tag, id, classes, nthOfType: nth, node: `${tag}${id ? `#${cssEscape(id)}` : ''}${cls}${id ? '' : `:nth-of-type(${nth})`}` });
+    cur = parent;
+  }
+  return chain;
+}
+
+function splitClasses(raw) {
+  return String(raw || '').trim().split(/\s+/).filter(Boolean);
+}
+
+function cssEscape(value) {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, (m) => `\\${m}`);
 }
 
 async function runDiff(argv, cfg) {
@@ -491,6 +691,10 @@ function helpText() {
     '  dom [--url URL|--file FILE] query "<selector>" [--top N] [--text]',
     '  dom [--url URL|--file FILE] pick "<selector>" --fields "name:sel,name2:sel@attr" [--top N] [--jsonl]',
     '  dom [--url URL|--file FILE] near "<needle text>" --within "form,section" --return "input@name,input@value"',
+    '  dom [--url URL|--file FILE] path --selector "<selector>" [--style css|ancestry] [--depth N] [--top N]',
+    '  dom [--url URL|--file FILE] path --text "<needle>" [--style css|ancestry] [--depth N] [--top N]',
+    '  dom near "Buy Now" | dom path --style css',
+    '  dom pick ".price" --fields "text:." --jsonl | dom path --depth 3',
     '  dom diff [left.json right.json]',
     '  dom diff --left left.json --right right.json',
     '  cat pair.json | dom diff',
