@@ -57,6 +57,10 @@ export async function runDomCli(argv, cfg = {}) {
     return runPath($, rest.slice(1));
   }
 
+  if (cmd === 'glance') {
+    return runGlance($, rest.slice(1));
+  }
+
   if (cmd === 'find-text') {
     const needle = (rest[1] || '').toLowerCase();
     if (!needle) return fail('usage: dom [--url U|--file F] find-text "<text>" [--context N]', 2);
@@ -363,6 +367,95 @@ function splitClasses(raw) {
 
 function cssEscape(value) {
   return String(value).replace(/[^a-zA-Z0-9_-]/g, (m) => `\\${m}`);
+}
+
+function runGlance($, argv) {
+  if (argv.includes('--help') || argv[0] === 'help') {
+    return ok('usage: dom [--url U|--file F] glance [--top N]');
+  }
+  if (argv[0] && !argv[0].startsWith('--')) {
+    return fail('usage: dom [--url U|--file F] glance [--top N]', 2);
+  }
+
+  const topRaw = Number(readFlag(argv, '--top', '8'));
+  const top = Number.isFinite(topRaw) && topRaw > 0 ? Math.min(50, Math.floor(topRaw)) : 8;
+
+  const headings = $('h1,h2,h3').toArray()
+    .slice(0, top)
+    .map((el) => ({
+      level: (el.tagName || '').toLowerCase(),
+      text: compactText($(el).text(), 120)
+    }))
+    .filter((h) => h.text);
+
+  const counts = {
+    links: $('a[href]').length,
+    forms: $('form').length,
+    buttons: $('button,input[type="button"],input[type="submit"],input[type="reset"]').length,
+    inputs: $('input,textarea,select').length,
+    tables: $('table').length,
+    lists: $('ul,ol,dl').length,
+    sections: $('section').length
+  };
+
+  const topIds = topAttributeCounts($, 'id', top);
+  const topClasses = topClassCounts($, top);
+  const landmarks = detectLandmarks($, top);
+
+  return ok(JSON.stringify({
+    cmd: 'glance',
+    schema: 'compact-v1',
+    title: compactText($('title').first().text(), MAX_TEXT),
+    headings,
+    counts,
+    topIds,
+    topClasses,
+    landmarks
+  }, null, 0));
+}
+
+function topAttributeCounts($, attr, limit) {
+  const freq = new Map();
+  $(`[${attr}]`).toArray().forEach((el) => {
+    const v = String($(el).attr(attr) || '').trim();
+    if (!v) return;
+    freq.set(v, (freq.get(v) || 0) + 1);
+  });
+  return [...freq.entries()]
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([value, count]) => ({ value, count }));
+}
+
+function topClassCounts($, limit) {
+  const freq = new Map();
+  $('[class]').toArray().forEach((el) => {
+    splitClasses($(el).attr('class')).forEach((name) => {
+      if (!name) return;
+      freq.set(name, (freq.get(name) || 0) + 1);
+    });
+  });
+  return [...freq.entries()]
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
+
+function detectLandmarks($, limit) {
+  const candidates = [
+    { key: 'main', selector: 'main,[role="main"]' },
+    { key: 'header', selector: 'header,[role="banner"]' },
+    { key: 'nav', selector: 'nav,[role="navigation"]' },
+    { key: 'search', selector: '[role="search"],form[role="search"]' },
+    { key: 'contentinfo', selector: 'footer,[role="contentinfo"]' },
+    { key: 'complementary', selector: 'aside,[role="complementary"]' },
+    { key: 'region', selector: '[role="region"]' }
+  ];
+  const out = candidates
+    .map((c) => ({ name: c.key, count: $(c.selector).length }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return out.slice(0, limit);
 }
 
 async function runDiff(argv, cfg) {
@@ -693,6 +786,7 @@ function helpText() {
     '  dom [--url URL|--file FILE] near "<needle text>" --within "form,section" --return "input@name,input@value"',
     '  dom [--url URL|--file FILE] path --selector "<selector>" [--style css|ancestry] [--depth N] [--top N]',
     '  dom [--url URL|--file FILE] path --text "<needle>" [--style css|ancestry] [--depth N] [--top N]',
+    '  dom [--url URL|--file FILE] glance [--top N]',
     '  dom near "Buy Now" | dom path --style css',
     '  dom pick ".price" --fields "text:." --jsonl | dom path --depth 3',
     '  dom diff [left.json right.json]',

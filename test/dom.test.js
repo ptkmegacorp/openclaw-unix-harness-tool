@@ -175,6 +175,40 @@ test('dom act local integration: click/wait-text/snapshot', async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+
+
+test('dom glance returns compact deterministic structure', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+  const r = await run('dom --file sample.html glance --top 3', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /"cmd":"glance"/);
+  assert.match(r.output, /"schema":"compact-v1"/);
+  assert.match(r.output, /"title":"Demo Page"/);
+  assert.match(r.output, /"counts":\{"links":3,"forms":1,"buttons":1,"inputs":1,"tables":0,"lists":1,"sections":1\}/);
+  assert.match(r.output, /"headings":\[/);
+  assert.match(r.output, /"topIds":\[/);
+  assert.match(r.output, /"topClasses":\[/);
+  assert.match(r.output, /"landmarks":\[/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('dom glance malformed args and help', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dom-'));
+  const cfg = cfgFor(dir);
+  seedHtml(dir);
+
+  let r = await run('dom --file sample.html glance --help', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /dom \[--url .* glance/);
+
+  r = await run('dom --file sample.html glance nope', cfg);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.output, /dom \[--url .* glance/);
+
+  rmSync(dir, { recursive: true, force: true });
+});
 test('dom path selector mode emits deterministic path rows', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'dom-'));
   const cfg = cfgFor(dir);
@@ -222,6 +256,7 @@ test('dom path malformed args and help', async () => {
   let r = await run('dom --help', cfg);
   assert.equal(r.exitCode, 0);
   assert.match(r.output, /dom .* path --selector/);
+  assert.match(r.output, /dom .* glance/);
 
   r = await run('dom --file sample.html path --selector "a" --text "Buy"', cfg);
   assert.equal(r.exitCode, 2);

@@ -239,6 +239,7 @@ npm run cli -- run 'dom --url https://example.com query "a" --top 5 --text'
 npm run cli -- run 'dom --file ./page.html find-text "pricing" --context 60'
 npm run cli -- run 'dom --url https://example.com extract links --contains docs'
 npm run cli -- run 'dom --url https://example.com snapshot --schema compact'
+npm run cli -- run 'dom --url https://example.com glance --top 8'
 ```
 
 Spec: `docs/dom-harness-spec.md`.
@@ -280,6 +281,9 @@ npm run cli -- run 'dom --file sample.html pick "section.card" --fields "title:h
 # JSONL mode for unix pipelines
 npm run cli -- run 'dom --file sample.html pick "li" --fields "text:." --jsonl | jq -c .'
 
+# quick planning summary (recommended first step)
+npm run cli -- run 'dom --file sample.html glance --top 8'
+
 # find nearest context containing text and extract targets
 npm run cli -- run 'dom --file sample.html near "email" --within "form,section" --return "input@name,input@value"'
 
@@ -299,6 +303,8 @@ npm run cli -- run 'dom diff before.json after.json'
 # diff inline stdin pair
 npm run cli -- run 'printf "[{\"title\":\"A\"},{\"title\":\"B\"}]" | dom diff'
 ```
+
+Recommended workflow: `dom glance` -> `dom pick`/`dom near` -> `dom path`.
 
 Composability tips:
 - Use `jq` for field slicing/aggregation.

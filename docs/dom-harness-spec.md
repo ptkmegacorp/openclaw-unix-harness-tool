@@ -22,6 +22,7 @@ All commands run under `dom`.
 - `dom [--url URL|--file FILE] path --text "<needle>" [--style css|ancestry] [--depth N] [--top N]`
 - `dom [--url URL|--file FILE] extract links [--contains X]`
 - `dom [--url URL|--file FILE] snapshot --schema compact`
+- `dom [--url URL|--file FILE] glance [--top N]`
 - `dom diff [left.json right.json]`
 - `dom diff --left left.json --right right.json`
 - `cat pair.json | dom diff` where `pair.json` is `[left,right]` or `{"left":...,"right":...}`
@@ -59,6 +60,23 @@ All commands run under `dom`.
 Examples:
 - `dom near "Buy Now" | dom path --style css`
 - `dom pick ".price" | dom path --depth 3`
+
+
+### glance contract
+- Purpose:
+  - reduced structure summary for token-efficient planning before deeper extraction.
+- Inputs:
+  - optional `--top N` (default 8, max 50) bounds headings/top-ids/top-classes/landmarks.
+- Output (deterministic compact schema):
+  - `{"cmd":"glance","schema":"compact-v1","title":"...","headings":[...],"counts":{...},"topIds":[...],"topClasses":[...],"landmarks":[...]}`
+  - `headings[]`: ordered `h1/h2/h3` entries `{level,text}` (document order).
+  - `counts`: `links/forms/buttons/inputs/tables/lists/sections`.
+  - `topIds[]`: `{value,count}` sorted by `count desc, value asc`.
+  - `topClasses[]`: `{name,count}` sorted by `count desc, name asc`.
+  - `landmarks[]`: detected key regions with `{name,count}` sorted by `name asc`.
+
+Recommended workflow:
+- `dom glance` → choose target area → `dom pick` / `dom near` → `dom path` for stable selectors.
 
 ### diff contract
 - Inputs:
