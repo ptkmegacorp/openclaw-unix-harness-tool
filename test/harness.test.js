@@ -59,6 +59,91 @@ test('D) binary guard and text non-binary', async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+test('mgrep direct/recursive/stdin/topk/threshold/no-match/help/integration + backward compat', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harness-mgrep-'));
+  const cfg = cfgFor(dir);
+  writeFileSync(join(dir, 'a.txt'), 'apple banana\nerror connecting to db\nnetwork timeout\n');
+  writeFileSync(join(dir, 'b.txt'), 'database connection failed\nall good\n');
+  const nested = join(dir, 'nested');
+  await run('mkdir -p nested', cfg);
+  writeFileSync(join(nested, 'c.txt'), 'db connectivity issue\n');
+
+  let r = await run('mgrep "database connection error" a.txt b.txt', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /a\.txt:\d+:0\.\d{3}:/);
+
+  r = await run('mgrep query "database connection error" a.txt b.txt', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /a\.txt:\d+:0\.\d{3}:/);
+
+  r = await run('mgrep -r "connect db" .', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /nested\/c\.txt:/);
+
+  r = await run('cat a.txt | mgrep "network timeout"', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /stdin:3:/);
+
+  r = await run('mgrep -k 1 -t 0.30 "connection" a.txt b.txt', cfg);
+  assert.equal(r.exitCode, 0);
+  const lines = r.output.split('\n').filter((l) => /:\d+:0\.\d{3}:/.test(l));
+  assert.equal(lines.length, 1);
+
+  r = await run('mgrep -t 0.99 "totally unrelated" a.txt', cfg);
+  assert.equal(r.exitCode, 1);
+
+  r = await run('mgrep --wat "x" a.txt', cfg);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.output, /unknown flag/i);
+
+  r = await run('mgrep --help', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /semantic grep/i);
+
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('mgrep index build/incremental/status/clear/cache fallback', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harness-mgrep-index-'));
+  const cfg = cfgFor(dir);
+  writeFileSync(join(dir, 'a.txt'), 'alpha beta\ndatabase timeout error\n');
+  writeFileSync(join(dir, 'b.txt'), 'connection refused\nretry with backoff\n');
+
+  let r = await run('mgrep index .', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /indexed 2 files/);
+
+  r = await run('mgrep index --status .', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /index: present/);
+  assert.match(r.output, /files: 2/);
+
+  r = await run('mgrep "database timeout" .', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /using cached index/);
+
+  // incremental update should report an updated file
+  writeFileSync(join(dir, 'a.txt'), 'alpha beta\ndatabase timeout error\nnew line after change\n');
+  r = await run('mgrep index .', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /updated/);
+
+  // stale cache ttl forces graceful fallback scan
+  r = await run('mgrep -r --cache-ttl-sec 0 "new line after change" .', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.doesNotMatch(r.output, /using cached index/);
+
+  r = await run('mgrep index --clear .', cfg);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.output, /cleared index/);
+
+  r = await run('mgrep index --status .', cfg);
+  assert.equal(r.exitCode, 1);
+  assert.match(r.output, /index: missing/);
+
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test('E/F/G/H/I) stderr, safety, budgets, trace, recovery', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'harness-'));
   const cfg = cfgFor(dir);
