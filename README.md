@@ -1,4 +1,4 @@
-# local-ai-harness v1
+# openclaw-unix-harness-tool v1
 
 Unix-native single-surface harness implementing `run(command)` with robust operator parsing, safety gates, JSONL tracing, overflow artifacts, and optional local llama.cpp (OpenAI-compatible) presentation.
 

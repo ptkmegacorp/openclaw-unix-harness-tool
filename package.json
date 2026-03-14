@@ -1,8 +1,11 @@
 {
-  "name": "local-ai-harness",
+  "name": "openclaw-unix-harness-tool",
   "version": "1.0.0",
   "type": "module",
   "main": "src/cli.js",
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
   "scripts": {
     "start": "node src/server.js",
     "cli": "node src/cli.js",

@@ -1,0 +1,27 @@
+{
+  "id": "openclaw-unix-harness-tool",
+  "name": "OpenClaw Unix Harness Tool",
+  "description": "First-class run(command) harness tool with unix-style chaining and safety confirmations.",
+  "version": "1.0.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "root": { "type": "string" },
+      "cwd": { "type": "string" },
+      "maxSegments": { "type": "integer", "minimum": 1, "maximum": 64 },
+      "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 300000 },
+      "maxReturnBytes": { "type": "integer", "minimum": 1024 },
+      "maxLines": { "type": "integer", "minimum": 10, "maximum": 5000 },
+      "traceFile": { "type": "string" },
+      "auditFile": { "type": "string" },
+      "artifactDir": { "type": "string" },
+      "useLlmPresenter": { "type": "boolean" },
+      "llmModel": { "type": "string" },
+      "llmEndpoints": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  }
+}
