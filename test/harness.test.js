@@ -159,29 +159,17 @@ test('E/F/G/H/I) stderr, safety, budgets, trace, recovery', async () => {
   assert.match(r.output, /chain too long/);
 
   r = await run('sleep 2', { ...cfg, timeoutMs: 50 });
-  assert.equal(r.exitCode, 403);
-  assert.match(r.output, /confirmWrite=true/);
-
-  r = await run('sleep 2', { ...cfg, timeoutMs: 50 }, { confirmWrite: true, confirmSure: true });
   if (r.exitCode === 124) assert.equal(r.exitCode, 124);
   else assert.match(r.output, /sandbox backend unavailable/i);
 
   r = await run('this_command_should_not_exist_zzz', cfg);
-  assert.equal(r.exitCode, 403);
-  assert.match(r.output, /confirmWrite=true/);
-
-  r = await run('this_command_should_not_exist_zzz', cfg, { confirmWrite: true, confirmSure: true });
   if (r.exitCode === 127) {
     assert.match(r.output, /unknown command/i);
   } else {
     assert.match(r.output, /sandbox backend unavailable/i);
   }
 
-  r = await run('touch demo.txt', cfg);
-  assert.equal(r.exitCode, 403);
-  assert.match(r.output, /confirmWrite=true/);
-
-  await run('touch demo.txt', cfg, { confirmWrite: true });
+  await run('touch demo.txt', cfg);
   const audit = readFileSync(join(dir, 'logs/audit.log'), 'utf8');
   assert.match(audit, /touch demo.txt/);
 

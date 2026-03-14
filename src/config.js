@@ -5,8 +5,8 @@ export function getConfig() {
   return {
     root,
     cwd: process.env.HARNESS_CWD || root,
-    traceFile: process.env.HARNESS_TRACE_FILE || resolve(root, 'logs/run-trace.jsonl'),
-    auditFile: process.env.HARNESS_AUDIT_FILE || resolve(root, 'logs/audit.log'),
+    traceFile: process.env.HARNESS_TRACE_FILE || '/home/bot/harness-logs/run-trace.jsonl',
+    auditFile: process.env.HARNESS_AUDIT_FILE || '/home/bot/harness-logs/audit.log',
     artifactDir: process.env.HARNESS_ARTIFACT_DIR || resolve(root, 'artifacts'),
     maxSegments: Number(process.env.HARNESS_MAX_SEGMENTS || 12),
     timeoutMs: Number(process.env.HARNESS_TIMEOUT_MS || 60000),

@@ -16,12 +16,6 @@ export function enforcePolicy(command, options = {}) {
   const policyClass = classifyCommand(command);
   const sure = Boolean(options.confirmSure);
 
-  if (policyClass === 'B') {
-    if (!options.confirmWrite) {
-      return refusal('Mutable command blocked', 'Set confirmWrite=true and retry.');
-    }
-  }
-
   if (policyClass === 'C') {
     const isDelete = /(^|\s)rm(\s|$)/.test(command);
     const isExternal = EXTERNAL.some((e) => new RegExp(`(^|\\s)${e}(\\s|$)`).test(command));

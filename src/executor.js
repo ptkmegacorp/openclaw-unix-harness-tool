@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { parseChain } from './parser.js';
+
+const BUILTIN_BIN = fileURLToPath(new URL('../bin', import.meta.url));
 
 export async function executeChain(command, cfg = {}) {
   const start = Date.now();
@@ -20,7 +23,7 @@ export async function executeChain(command, cfg = {}) {
       if (op === '&&' && prevExit !== 0) continue;
       if (op === '||' && prevExit === 0) continue;
     }
-    const result = await execSegment(seg, cfg.timeoutMs ?? 60000, cfg.cwd);
+    const result = await execSegment(seg, cfg.timeoutMs ?? 60000, cfg.cwd, cfg.root);
     prevExit = result.exitCode;
     finalStdout = result.stdout;
     finalStderr = result.stderr;
@@ -35,9 +38,14 @@ export async function executeChain(command, cfg = {}) {
   };
 }
 
-function execSegment(segment, timeoutMs, cwd) {
+function execSegment(segment, timeoutMs, cwd, root) {
   return new Promise((resolve) => {
-    const child = spawn('bash', ['-lc', segment], { cwd });
+    const env = { ...process.env };
+    const pathParts = [BUILTIN_BIN];
+    if (root) pathParts.push(`${root}/bin`);
+    pathParts.push(env.PATH || '');
+    env.PATH = pathParts.join(':');
+    const child = spawn('bash', ['-c', segment], { cwd, env });
     const out = [];
     const err = [];
     let timedOut = false;

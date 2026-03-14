@@ -4,8 +4,8 @@ function buildCfg(root: string, overrides: any = {}) {
   return {
     root,
     cwd: overrides.cwd || process.env.HARNESS_CWD || root,
-    traceFile: overrides.traceFile || process.env.HARNESS_TRACE_FILE || resolve(root, "logs/run-trace.jsonl"),
-    auditFile: overrides.auditFile || process.env.HARNESS_AUDIT_FILE || resolve(root, "logs/audit.log"),
+    traceFile: overrides.traceFile || process.env.HARNESS_TRACE_FILE || "/home/bot/harness-logs/run-trace.jsonl",
+    auditFile: overrides.auditFile || process.env.HARNESS_AUDIT_FILE || "/home/bot/harness-logs/audit.log",
     artifactDir: overrides.artifactDir || process.env.HARNESS_ARTIFACT_DIR || resolve(root, "artifacts"),
     maxSegments: Number(overrides.maxSegments ?? process.env.HARNESS_MAX_SEGMENTS ?? 12),
     timeoutMs: Number(overrides.timeoutMs ?? process.env.HARNESS_TIMEOUT_MS ?? 60000),

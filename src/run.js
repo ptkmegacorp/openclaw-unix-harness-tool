@@ -18,7 +18,7 @@ export async function run(command, cfg, opts = {}) {
   const raw = await executeChain(command, cfg);
 
   if (raw.exitCode === 127 && /command not found/i.test(raw.stderr.toString('utf8'))) {
-    const hint = `[error] unknown command. Available: cat, ls, grep, find, head, tail, wc, echo, pwd, sort, uniq, sed, awk\n`;
+    const hint = `[error] unknown command. Available: cat, ls, grep, mgrep, find, head, tail, wc, echo, pwd, sort, uniq, sed, awk\n`;
     raw.stderr = Buffer.concat([Buffer.from(hint), raw.stderr]);
   }
 
